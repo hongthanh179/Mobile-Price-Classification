@@ -1,0 +1,17 @@
+data:
+  raw_path: "data/raw/train.csv"
+  processed_path: "data/processed/train_cleaned.csv"
+  test_size: 0.2
+  random_state: 42
+
+model:
+  algorithm: "SVC"
+  kernel: "linear"
+  C: 1.0
+  random_state: 42
+  model_path: "models/best_svm_model.joblib"
+  scaler_path: "models/scaler.joblib"
+
+evaluation:
+  metrics_path: "reports/metrics.json"
+  confusion_matrix_path: "reports/figures/confusion_matrix_evaluated.png"

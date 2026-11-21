@@ -1,0 +1,23 @@
+# Môi trường ảo & IDE
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+.idea/
+.ipynb_checkpoints/
+
+# Dữ liệu cục bộ (Tránh làm nặng Git repo)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Giữ lại trọng số mô hình (.joblib) để deploy web
+models/*
+!models/.gitkeep
+!models/*.joblib
+
+# File biến môi trường & file gom code tạm
+.env
+all_code*.txt
