@@ -162,7 +162,7 @@ Sau khi chạy lệnh, trình duyệt sẽ tự động mở ứng dụng tại 
 ## 7. Thông tin đồ án
 
 * **Đề tài:** Dự đoán phân khúc giá thiết bị di động (Mobile Price Classification)
-* **Sinh viên thực hiện:** Nguyễn Hồng Thanh
+* **Sinh viên thực hiện:** Nguyễn Hồng Thanh, Nguyễn Hoàng Thái
 * **Công nghệ sử dụng:** Python, Scikit-learn, Pandas, NumPy, Matplotlib, Seaborn, Streamlit
 
 [↑ Quay lại đầu trang](#top)
