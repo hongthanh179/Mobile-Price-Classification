@@ -1,34 +1,11 @@
 import streamlit as st
-import numpy as np
-import pandas as pd
-import joblib
-from pathlib import Path
+import os
+
+import requests
 
 # Cấu hình trang hiển thị
 st.set_page_config(page_title="Phân loại giá điện thoại", layout="wide")
-
-# Xác định đường dẫn thư mục gốc để nạp mô hình ổn định
-BASE_DIR = Path(__file__).resolve().parent
-
-
-@st.cache_resource
-def load_artifacts():
-    model_path = BASE_DIR / 'models' / 'best_svm_model.joblib'
-    scaler_path = BASE_DIR / 'models' / 'scaler.joblib'
-
-    if not model_path.exists() or not scaler_path.exists():
-        raise FileNotFoundError("Chưa tìm thấy mô hình hoặc bộ chuẩn hóa trong thư mục models/.")
-
-    model = joblib.load(model_path)
-    scaler = joblib.load(scaler_path)
-    return model, scaler
-
-
-try:
-    model, scaler = load_artifacts()
-except Exception as e:
-    st.error(f"Lỗi khởi tạo hệ thống: {e}")
-    st.stop()
+API_URL = os.getenv("MOBILE_PRICE_API_URL", "http://127.0.0.1:8000/predict")
 
 # Tiêu đề và giới thiệu
 st.title("Dự đoán phân khúc giá thiết bị di động")
@@ -71,49 +48,37 @@ with col3:
     blue = 1 if st.checkbox("Hỗ trợ Bluetooth", value=True) else 0
     touch_screen = 1 if st.checkbox("Màn hình cảm ứng", value=True) else 0
 
-# Tính toán các đặc trưng phái sinh
-px_area = px_height * px_width
-sc_area = sc_h * sc_w
-
-# Khớp đúng thứ tự các thuộc tính như trong quá trình huấn luyện
-input_data = pd.DataFrame([[
-    battery_power, blue, clock_speed, dual_sim, fc, four_g,
-    int_memory, m_dep, mobile_wt, n_cores, pc, px_height,
-    px_width, ram, sc_h, sc_w, talk_time, three_g,
-    touch_screen, wifi, px_area, sc_area
-]], columns=[
-    'battery_power', 'blue', 'clock_speed', 'dual_sim', 'fc', 'four_g',
-    'int_memory', 'm_dep', 'mobile_wt', 'n_cores', 'pc', 'px_height',
-    'px_width', 'ram', 'sc_h', 'sc_w', 'talk_time', 'three_g',
-    'touch_screen', 'wifi', 'px_area', 'sc_area'
-])
-
 st.write("---")
 
 if st.button("Dự đoán phân khúc", type="primary", use_container_width=True):
-    scaled_input = scaler.transform(input_data)
-    prediction = int(model.predict(scaled_input)[0])
-
-    price_descriptions = {
-        0: (
-            "Phân khúc phổ thông (Mức 0)",
-            "Cấu hình ở mức cơ bản, tối ưu cho nhu cầu liên lạc thông thường và các tác vụ nhẹ."
-        ),
-        1: (
-            "Phân khúc tầm trung (Mức 1)",
-            "Phần cứng cân đối giữa hiệu năng xử lý, thời lượng pin và giá thành."
-        ),
-        2: (
-            "Phân khúc cận cao cấp (Mức 2)",
-            "Bộ nhớ và khả năng hiển thị ở mức tốt, đáp ứng mượt mà các tác vụ đa nhiệm và giải trí."
-        ),
-        3: (
-            "Phân khúc cao cấp (Mức 3)",
-            "Trang bị các thông số kỹ thuật hàng đầu, đặc biệt là dung lượng RAM và màn hình độ phân giải cao."
-        )
+    payload = {
+        "battery_power": battery_power,
+        "blue": blue,
+        "clock_speed": clock_speed,
+        "dual_sim": dual_sim,
+        "fc": fc,
+        "four_g": four_g,
+        "int_memory": int_memory,
+        "m_dep": m_dep,
+        "mobile_wt": mobile_wt,
+        "n_cores": n_cores,
+        "pc": pc,
+        "px_height": px_height,
+        "px_width": px_width,
+        "ram": ram,
+        "sc_h": sc_h,
+        "sc_w": sc_w,
+        "talk_time": talk_time,
+        "three_g": three_g,
+        "touch_screen": touch_screen,
+        "wifi": wifi,
     }
-
-    title, detail = price_descriptions[prediction]
-
-    st.markdown(f"### Kết quả: {title}")
-    st.write(detail)
+    try:
+        response = requests.post(API_URL, json=payload, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+    except requests.RequestException as error:
+        st.error(f"Không gọi được API dự đoán ({API_URL}): {error}")
+    else:
+        st.markdown(f"### Kết quả: {result['segment']}")
+        st.write(result["description"])
