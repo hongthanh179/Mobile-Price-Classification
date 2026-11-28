@@ -1,25 +1,38 @@
-import streamlit as st
-import os
 import json
+import os
+import sys
 from pathlib import Path
 
+import pandas as pd
 import requests
+import streamlit as st
 
-# Cấu hình trang hiển thị
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from src.mobile_price.api import (
+    MODEL_LABELS,
+    MobileSpecifications,
+    PRICE_DESCRIPTIONS,
+    build_feature_frame,
+    load_artifacts,
+)
+
 st.set_page_config(page_title="Phân loại giá điện thoại", layout="wide")
 API_URL = os.getenv("MOBILE_PRICE_API_URL", "http://127.0.0.1:8000/predict")
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = ROOT_DIR
 MODEL_OPTIONS = {
     "Linear SVM — Nguyễn Hồng Thanh": "svm",
     "Random Forest — Nguyễn Hoàng Thái": "random_forest",
 }
 
-# Tiêu đề và giới thiệu
 st.title("Dự đoán phân khúc giá thiết bị di động")
 st.write(
     "Ứng dụng hỗ trợ ước tính phân khúc giá của điện thoại dựa trên cấu hình phần cứng. "
     "Chọn một trong hai mô hình do các thành viên xây dựng để so sánh dự đoán."
 )
+
 selected_model_label = st.selectbox("Mô hình dự đoán", list(MODEL_OPTIONS))
 st.caption(f"Mô hình đang chọn: {selected_model_label}")
 
@@ -47,8 +60,9 @@ else:
                 "Macro F1": f"{rf_metrics['test']['f1_macro']:.2%}",
             },
         ],
-        use_container_width=True,
+        width="stretch",
     )
+
 st.write("---")
 
 col1, col2, col3 = st.columns(3)
@@ -86,7 +100,29 @@ with col3:
 
 st.write("---")
 
-if st.button("Dự đoán phân khúc", type="primary", use_container_width=True):
+
+def predict_locally(payload: dict, model_name: str) -> dict:
+    specifications = MobileSpecifications(**payload)
+    classifier, scaler = load_artifacts(model_name)
+    feature_frame = build_feature_frame(specifications)
+    scaled_features = scaler.transform(feature_frame)
+
+    if hasattr(classifier, "feature_names_in_"):
+        scaled_features = pd.DataFrame(
+            scaled_features,
+            columns=classifier.feature_names_in_,
+        )
+
+    prediction = int(classifier.predict(scaled_features)[0])
+    segment, description = PRICE_DESCRIPTIONS[prediction]
+    return {
+        "model": MODEL_LABELS[model_name],
+        "segment": segment,
+        "description": description,
+    }
+
+
+if st.button("Dự đoán phân khúc", type="primary", width="stretch"):
     payload = {
         "battery_power": battery_power,
         "blue": blue,
@@ -109,17 +145,26 @@ if st.button("Dự đoán phân khúc", type="primary", use_container_width=True
         "touch_screen": touch_screen,
         "wifi": wifi,
     }
+
+    model_name = MODEL_OPTIONS[selected_model_label]
     try:
         response = requests.post(
             API_URL,
-            params={"model": MODEL_OPTIONS[selected_model_label]},
+            params={"model": model_name},
             json=payload,
             timeout=10,
         )
         response.raise_for_status()
         result = response.json()
     except requests.RequestException as error:
-        st.error(f"Không gọi được API dự đoán ({API_URL}): {error}")
+        st.warning(f"Không gọi được API; đang thử dự đoán cục bộ: {error}")
+        try:
+            result = predict_locally(payload, model_name)
+        except FileNotFoundError as model_error:
+            st.error(f"Không tìm thấy model để dự đoán: {model_error}")
+        else:
+            st.markdown(f"### {result['model']} — {result['segment']}")
+            st.write(result["description"])
     else:
         st.markdown(f"### {result['model']} — {result['segment']}")
         st.write(result["description"])
