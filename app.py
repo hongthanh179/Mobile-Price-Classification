@@ -1,18 +1,54 @@
 import streamlit as st
 import os
+import json
+from pathlib import Path
 
 import requests
 
 # Cấu hình trang hiển thị
 st.set_page_config(page_title="Phân loại giá điện thoại", layout="wide")
 API_URL = os.getenv("MOBILE_PRICE_API_URL", "http://127.0.0.1:8000/predict")
+PROJECT_ROOT = Path(__file__).resolve().parent
+MODEL_OPTIONS = {
+    "Linear SVM — Nguyễn Hồng Thanh": "svm",
+    "Random Forest — Nguyễn Hoàng Thái": "random_forest",
+}
 
 # Tiêu đề và giới thiệu
 st.title("Dự đoán phân khúc giá thiết bị di động")
 st.write(
     "Ứng dụng hỗ trợ ước tính phân khúc giá của điện thoại dựa trên cấu hình phần cứng. "
-    "Mô hình sử dụng thuật toán Support Vector Machine (Linear SVM) đã được tối ưu qua kiểm định chéo."
+    "Chọn một trong hai mô hình do các thành viên xây dựng để so sánh dự đoán."
 )
+selected_model_label = st.selectbox("Mô hình dự đoán", list(MODEL_OPTIONS))
+st.caption(f"Mô hình đang chọn: {selected_model_label}")
+
+try:
+    with open(PROJECT_ROOT / "reports" / "metrics.json", encoding="utf-8") as file:
+        svm_metrics = json.load(file)
+    with open(PROJECT_ROOT / "reports" / "metrics_rf.json", encoding="utf-8") as file:
+        rf_metrics = json.load(file)
+except (OSError, json.JSONDecodeError) as error:
+    st.error(f"Không đọc được metrics để so sánh mô hình: {error}")
+else:
+    st.subheader("So sánh kết quả trên tập kiểm thử")
+    st.dataframe(
+        [
+            {
+                "Thành viên": "Nguyễn Hồng Thanh",
+                "Mô hình": "Linear SVM",
+                "Accuracy": f"{svm_metrics['accuracy']:.2%}",
+                "Macro F1": f"{svm_metrics['macro avg']['f1-score']:.2%}",
+            },
+            {
+                "Thành viên": "Nguyễn Hoàng Thái",
+                "Mô hình": "Random Forest",
+                "Accuracy": f"{rf_metrics['test']['accuracy']:.2%}",
+                "Macro F1": f"{rf_metrics['test']['f1_macro']:.2%}",
+            },
+        ],
+        use_container_width=True,
+    )
 st.write("---")
 
 col1, col2, col3 = st.columns(3)
@@ -74,11 +110,16 @@ if st.button("Dự đoán phân khúc", type="primary", use_container_width=True
         "wifi": wifi,
     }
     try:
-        response = requests.post(API_URL, json=payload, timeout=10)
+        response = requests.post(
+            API_URL,
+            params={"model": MODEL_OPTIONS[selected_model_label]},
+            json=payload,
+            timeout=10,
+        )
         response.raise_for_status()
         result = response.json()
     except requests.RequestException as error:
         st.error(f"Không gọi được API dự đoán ({API_URL}): {error}")
     else:
-        st.markdown(f"### Kết quả: {result['segment']}")
+        st.markdown(f"### {result['model']} — {result['segment']}")
         st.write(result["description"])
