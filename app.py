@@ -1,7 +1,21 @@
-import streamlit as st
 import os
+import sys
+from pathlib import Path
 
 import requests
+import streamlit as st
+
+# Đảm bảo import được package src.mobile_price trên mọi môi trường deploy
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from src.mobile_price.api import (
+    MobileSpecifications,
+    PRICE_DESCRIPTIONS,
+    build_feature_frame,
+    load_artifacts,
+)
 
 # Cấu hình trang hiển thị
 st.set_page_config(page_title="Phân loại giá điện thoại", layout="wide")
@@ -50,6 +64,17 @@ with col3:
 
 st.write("---")
 
+
+def predict_locally(payload: dict) -> dict:
+    specifications = MobileSpecifications(**payload)
+    model, scaler = load_artifacts()
+    feature_frame = build_feature_frame(specifications)
+    scaled_features = scaler.transform(feature_frame)
+    prediction = int(model.predict(scaled_features)[0])
+    segment, description = PRICE_DESCRIPTIONS[prediction]
+    return {"segment": segment, "description": description}
+
+
 if st.button("Dự đoán phân khúc", type="primary", use_container_width=True):
     payload = {
         "battery_power": battery_power,
@@ -74,11 +99,11 @@ if st.button("Dự đoán phân khúc", type="primary", use_container_width=True
         "wifi": wifi,
     }
     try:
-        response = requests.post(API_URL, json=payload, timeout=10)
+        response = requests.post(API_URL, json=payload, timeout=5)
         response.raise_for_status()
         result = response.json()
-    except requests.RequestException as error:
-        st.error(f"Không gọi được API dự đoán ({API_URL}): {error}")
-    else:
-        st.markdown(f"### Kết quả: {result['segment']}")
-        st.write(result["description"])
+    except requests.RequestException:
+        result = predict_locally(payload)
+
+    st.markdown(f"### Kết quả: {result['segment']}")
+    st.write(result["description"])
