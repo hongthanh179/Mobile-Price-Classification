@@ -1,4 +1,6 @@
 import json
+from typing import Any, cast
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -13,12 +15,12 @@ except ImportError:
 
 
 def evaluate_model(
-        data_path: str | Path = None,
-        model_path: str | Path = None,
-        scaler_path: str | Path = None,
-        metrics_path: str | Path = None,
-        figure_path: str | Path = None
-) -> dict:
+    data_path: str | Path | None = None,
+    model_path: str | Path | None = None,
+    scaler_path: str | Path | None = None,
+    metrics_path: str | Path | None = None,
+    figure_path: str | Path | None = None,
+) -> dict[str, Any]:
     root = get_project_root()
     data_path = Path(data_path) if data_path else root / "data/processed/train_cleaned.csv"
     model_path = Path(model_path) if model_path else root / "models/best_svm_model.joblib"
@@ -41,10 +43,13 @@ def evaluate_model(
     y_pred = model.predict(X_test_scaled)
 
     acc = accuracy_score(y_test, y_pred)
-    report = classification_report(
-        y_test, y_pred,
-        target_names=['0 (Low)', '1 (Medium)', '2 (High)', '3 (Very High)'],
-        output_dict=True
+    report = cast(
+        dict[str, Any],
+        classification_report(
+            y_test, y_pred,
+            target_names=['0 (Low)', '1 (Medium)', '2 (High)', '3 (Very High)'],
+            output_dict=True
+        ),
     )
 
     print(f"\n[EVALUATION] Độ chính xác tổng thể (Accuracy): {acc * 100:.2f}%")

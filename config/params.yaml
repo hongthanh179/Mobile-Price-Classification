@@ -15,3 +15,21 @@ model:
 evaluation:
   metrics_path: "reports/metrics.json"
   confusion_matrix_path: "reports/figures/confusion_matrix_evaluated.png"
+
+random_forest:
+  model_path: "models/rf_model.joblib"
+  metrics_path: "reports/metrics_rf.json"
+  progress_path: "reports/rf_progress.csv"
+  cv_results_path: "reports/rf_cv_results.csv"
+  comparison_path: "reports/rf_svm_feature_comparison.csv"
+  figure_dir: "reports/figures"
+  random_state: 42
+  cv_splits: 5
+  tree_depths: [1, 2, 3, 4, 5, 8, null]
+  tree_min_samples_leaf: [2, 5, 10]
+  forest_estimators_progression: [1, 5, 10, 25, 50, 100]
+  grid_search:
+    n_estimators: 100
+    max_depth: [null, 8, 16]
+    max_features: ["sqrt", 0.7]
+    min_samples_leaf: [1, 2]

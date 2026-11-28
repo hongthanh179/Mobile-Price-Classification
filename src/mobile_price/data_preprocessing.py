@@ -7,7 +7,10 @@ except ImportError:
     from utils import get_project_root
 
 
-def clean_data(raw_data_path: str | Path = None, output_path: str | Path = None) -> pd.DataFrame:
+def clean_data(
+    raw_data_path: str | Path | None = None,
+    output_path: str | Path | None = None,
+) -> pd.DataFrame:
     root = get_project_root()
     raw_data_path = Path(raw_data_path) if raw_data_path else root / "data/raw/train.csv"
     output_path = Path(output_path) if output_path else root / "data/processed/train_cleaned.csv"

@@ -131,17 +131,33 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Bước 3: Chạy lại pipeline huấn luyện và đánh giá (tùy chọn)
+### Bước 3: Chạy lại pipeline huấn luyện và đánh giá SVM (tùy chọn)
 *(Bỏ qua bước này nếu sử dụng trực tiếp trọng số đã huấn luyện sẵn trong thư mục `models/`)*
 ```bash
 python main.py
 ```
+Lưu ý: `main.py` chạy lại pipeline SVM và ghi đè các artifact SVM hiện có. Artifact `best_svm_model.joblib` hiện dùng `C=10`, còn `model_training.py` và `params.yaml` vẫn đặt `C=1.0`; không chạy lại pipeline nếu muốn giữ nguyên artifact và kết quả hiện tại. Để chỉ chạy phần Random Forest của Nguyễn Hoàng Thái, dùng lệnh ở mục bên dưới.
 
-### Bước 4: Khởi chạy giao diện web Streamlit
+### Bước 4: Khởi chạy API và giao diện Streamlit
+Mở hai terminal tại thư mục dự án. Terminal thứ nhất chạy API:
+```bash
+uvicorn src.mobile_price.api:app --reload
+```
+
+Terminal thứ hai chạy giao diện:
 ```bash
 streamlit run app.py
 ```
-Sau khi chạy lệnh, trình duyệt sẽ tự động mở ứng dụng tại địa chỉ `http://localhost:8501`.
+Ứng dụng mở tại `http://localhost:8501`; tài liệu tương tác của API tại `http://127.0.0.1:8000/docs`.
+
+### Thí nghiệm Decision Tree và Random Forest
+Đặt dataset Kaggle tại `data/raw/train.csv`, sau đó chạy:
+```bash
+python -m src.mobile_price.rf_training
+```
+Lệnh này dùng lại `models/scaler.joblib`, thực hiện Stratified 5-Fold CV và đánh giá mô hình tốt nhất trên cùng tập test 80/20. Kết quả được lưu riêng vào `models/rf_model.joblib`, `reports/metrics_rf.json`, các bảng CSV và hình trong `reports/figures/`; nó cũng so sánh thứ hạng đặc trưng với Linear SVM. Lệnh không ghi đè model hay metrics của SVM.
+
+Lưu ý: `.gitignore` loại trừ các tệp dữ liệu trong `data/raw/` và `data/processed/`. Nếu cần người chấm tái chạy thực nghiệm từ file ZIP, hãy kèm dataset hoặc hướng dẫn tải nguồn Kaggle.
 
 [↑ Quay lại đầu trang](#top)
 
@@ -149,11 +165,7 @@ Sau khi chạy lệnh, trình duyệt sẽ tự động mở ứng dụng tại 
 
 ## 6. Triển khai ứng dụng web
 
-Ứng dụng tương thích trực tiếp với **Streamlit Community Cloud**:
-1. Đẩy toàn bộ mã nguồn (bao gồm thư mục `models/best_svm_model.joblib` và `models/scaler.joblib`) lên GitHub.
-2. Đăng nhập [share.streamlit.io](https://share.streamlit.io/) và chọn **New app**.
-3. Chọn repository `Mobile-Price-Classification`, nhánh `master` (hoặc `main`) và thiết lập **Main file path** là `app.py`.
-4. Nhấn **Deploy** để nhận đường dẫn web công khai.
+Streamlit gọi FastAPI qua biến môi trường `MOBILE_PRICE_API_URL` (mặc định `http://127.0.0.1:8000/predict`). Khi triển khai lên đám mây, cần triển khai API riêng và cấu hình URL công khai của API trong phần Secrets/Environment Variables của Streamlit; địa chỉ localhost trên máy cá nhân không dùng được từ Streamlit Cloud.
 
 [↑ Quay lại đầu trang](#top)
 
