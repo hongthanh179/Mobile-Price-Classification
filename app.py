@@ -147,24 +147,25 @@ if st.button("Dự đoán phân khúc", type="primary", width="stretch"):
     }
 
     model_name = MODEL_OPTIONS[selected_model_label]
+    inference_mode = "FastAPI REST API"
+
     try:
         response = requests.post(
             API_URL,
             params={"model": model_name},
             json=payload,
-            timeout=10,
+            timeout=3,
         )
         response.raise_for_status()
         result = response.json()
-    except requests.RequestException as error:
-        st.warning(f"Không gọi được API; đang thử dự đoán cục bộ: {error}")
+    except requests.RequestException:
+        inference_mode = "Mô hình tích hợp trực tiếp (Standalone)"
         try:
             result = predict_locally(payload, model_name)
         except FileNotFoundError as model_error:
             st.error(f"Không tìm thấy model để dự đoán: {model_error}")
-        else:
-            st.markdown(f"### {result['model']} — {result['segment']}")
-            st.write(result["description"])
-    else:
-        st.markdown(f"### {result['model']} — {result['segment']}")
-        st.write(result["description"])
+            st.stop()
+
+    st.markdown(f"### {result['model']} — {result['segment']}")
+    st.write(result["description"])
+    st.caption(f"Chế độ suy luận: {inference_mode}")
