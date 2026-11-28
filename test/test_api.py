@@ -57,12 +57,30 @@ class PredictionApiTests(unittest.TestCase):
         model = StubModel()
         specifications = api.MobileSpecifications(**valid_specifications())
 
-        with patch.object(api, "load_artifacts", return_value=(model, scaler)):
+        with patch.object(
+            api, "load_artifacts", return_value=(model, scaler)
+        ) as load:
             response = api.predict_price_segment(specifications)
 
         self.assertEqual(response.prediction, 2)
         self.assertEqual(response.model, "Linear SVM")
+        load.assert_called_once_with("svm")
         self.assertEqual(list(scaler.features.columns), api.FEATURE_COLUMNS)
+
+    def test_prediction_can_select_random_forest(self):
+        scaler = StubScaler()
+        model = StubModel()
+        specifications = api.MobileSpecifications(**valid_specifications())
+
+        with patch.object(api, "load_artifacts", return_value=(model, scaler)) as load:
+            response = api.predict_price_segment(
+                specifications,
+                model="random_forest",
+            )
+
+        load.assert_called_once_with("random_forest")
+        self.assertEqual(response.model, "Random Forest")
+        self.assertEqual(response.prediction, 2)
 
     def test_rejects_non_binary_connection_values(self):
         payload = valid_specifications()

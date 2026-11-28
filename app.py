@@ -1,32 +1,68 @@
+import json
 import os
 import sys
 from pathlib import Path
 
+import pandas as pd
 import requests
 import streamlit as st
 
-# Đảm bảo import được package src.mobile_price trên mọi môi trường deploy
 ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.mobile_price.api import (
+    MODEL_LABELS,
     MobileSpecifications,
     PRICE_DESCRIPTIONS,
     build_feature_frame,
     load_artifacts,
 )
 
-# Cấu hình trang hiển thị
 st.set_page_config(page_title="Phân loại giá điện thoại", layout="wide")
 API_URL = os.getenv("MOBILE_PRICE_API_URL", "http://127.0.0.1:8000/predict")
+PROJECT_ROOT = ROOT_DIR
+MODEL_OPTIONS = {
+    "Linear SVM — Nguyễn Hồng Thanh": "svm",
+    "Random Forest — Nguyễn Hoàng Thái": "random_forest",
+}
 
-# Tiêu đề và giới thiệu
 st.title("Dự đoán phân khúc giá thiết bị di động")
 st.write(
     "Ứng dụng hỗ trợ ước tính phân khúc giá của điện thoại dựa trên cấu hình phần cứng. "
-    "Mô hình sử dụng thuật toán Support Vector Machine (Linear SVM) đã được tối ưu qua kiểm định chéo."
+    "Chọn một trong hai mô hình do các thành viên xây dựng để so sánh dự đoán."
 )
+
+selected_model_label = st.selectbox("Mô hình dự đoán", list(MODEL_OPTIONS))
+st.caption(f"Mô hình đang chọn: {selected_model_label}")
+
+try:
+    with open(PROJECT_ROOT / "reports" / "metrics.json", encoding="utf-8") as file:
+        svm_metrics = json.load(file)
+    with open(PROJECT_ROOT / "reports" / "metrics_rf.json", encoding="utf-8") as file:
+        rf_metrics = json.load(file)
+except (OSError, json.JSONDecodeError) as error:
+    st.error(f"Không đọc được metrics để so sánh mô hình: {error}")
+else:
+    st.subheader("So sánh kết quả trên tập kiểm thử")
+    st.dataframe(
+        [
+            {
+                "Thành viên": "Nguyễn Hồng Thanh",
+                "Mô hình": "Linear SVM",
+                "Accuracy": f"{svm_metrics['accuracy']:.2%}",
+                "Macro F1": f"{svm_metrics['macro avg']['f1-score']:.2%}",
+            },
+            {
+                "Thành viên": "Nguyễn Hoàng Thái",
+                "Mô hình": "Random Forest",
+                "Accuracy": f"{rf_metrics['test']['accuracy']:.2%}",
+                "Macro F1": f"{rf_metrics['test']['f1_macro']:.2%}",
+            },
+        ],
+        width="stretch",
+    )
+
 st.write("---")
 
 col1, col2, col3 = st.columns(3)
@@ -65,17 +101,28 @@ with col3:
 st.write("---")
 
 
-def predict_locally(payload: dict) -> dict:
+def predict_locally(payload: dict, model_name: str) -> dict:
     specifications = MobileSpecifications(**payload)
-    model, scaler = load_artifacts()
+    classifier, scaler = load_artifacts(model_name)
     feature_frame = build_feature_frame(specifications)
     scaled_features = scaler.transform(feature_frame)
-    prediction = int(model.predict(scaled_features)[0])
+
+    if hasattr(classifier, "feature_names_in_"):
+        scaled_features = pd.DataFrame(
+            scaled_features,
+            columns=classifier.feature_names_in_,
+        )
+
+    prediction = int(classifier.predict(scaled_features)[0])
     segment, description = PRICE_DESCRIPTIONS[prediction]
-    return {"segment": segment, "description": description}
+    return {
+        "model": MODEL_LABELS[model_name],
+        "segment": segment,
+        "description": description,
+    }
 
 
-if st.button("Dự đoán phân khúc", type="primary", use_container_width=True):
+if st.button("Dự đoán phân khúc", type="primary", width="stretch"):
     payload = {
         "battery_power": battery_power,
         "blue": blue,
@@ -98,12 +145,26 @@ if st.button("Dự đoán phân khúc", type="primary", use_container_width=True
         "touch_screen": touch_screen,
         "wifi": wifi,
     }
+
+    model_name = MODEL_OPTIONS[selected_model_label]
     try:
-        response = requests.post(API_URL, json=payload, timeout=5)
+        response = requests.post(
+            API_URL,
+            params={"model": model_name},
+            json=payload,
+            timeout=10,
+        )
         response.raise_for_status()
         result = response.json()
-    except requests.RequestException:
-        result = predict_locally(payload)
-
-    st.markdown(f"### Kết quả: {result['segment']}")
-    st.write(result["description"])
+    except requests.RequestException as error:
+        st.warning(f"Không gọi được API; đang thử dự đoán cục bộ: {error}")
+        try:
+            result = predict_locally(payload, model_name)
+        except FileNotFoundError as model_error:
+            st.error(f"Không tìm thấy model để dự đoán: {model_error}")
+        else:
+            st.markdown(f"### {result['model']} — {result['segment']}")
+            st.write(result["description"])
+    else:
+        st.markdown(f"### {result['model']} — {result['segment']}")
+        st.write(result["description"])

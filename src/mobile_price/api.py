@@ -34,6 +34,16 @@ FEATURE_COLUMNS = [
     "sc_area",
 ]
 
+ModelSelection = Literal["svm", "random_forest"]
+MODEL_FILES = {
+    "svm": "best_svm_model.joblib",
+    "random_forest": "rf_model.joblib",
+}
+MODEL_LABELS = {
+    "svm": "Linear SVM",
+    "random_forest": "Random Forest",
+}
+
 PRICE_DESCRIPTIONS = {
     0: (
         "Phân khúc phổ thông (Mức 0)",
@@ -84,10 +94,10 @@ class PredictionResponse(BaseModel):
     model: str
 
 
-@lru_cache(maxsize=1)
-def load_artifacts() -> tuple[Any, Any]:
+@lru_cache(maxsize=2)
+def load_artifacts(model_name: ModelSelection = "svm") -> tuple[Any, Any]:
     root = get_project_root()
-    model_path = root / "models" / "best_svm_model.joblib"
+    model_path = root / "models" / MODEL_FILES[model_name]
     scaler_path = root / "models" / "scaler.joblib"
     missing = [path for path in (model_path, scaler_path) if not path.exists()]
     if missing:
@@ -108,7 +118,7 @@ def build_feature_frame(specifications: MobileSpecifications) -> pd.DataFrame:
 
 app = FastAPI(
     title="Mobile Price Classification API",
-    description="Predicts a mobile phone price segment using the project's Linear SVM.",
+    description="Predicts a mobile phone price segment using Linear SVM or Random Forest.",
     version="1.0.0",
 )
 
@@ -116,19 +126,25 @@ app = FastAPI(
 @app.post("/predict", response_model=PredictionResponse)
 def predict_price_segment(
     specifications: MobileSpecifications,
+    model: ModelSelection = "svm",
 ) -> PredictionResponse:
     try:
-        model, scaler = load_artifacts()
+        classifier, scaler = load_artifacts(model)
     except FileNotFoundError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
     feature_frame = build_feature_frame(specifications)
     scaled_features = scaler.transform(feature_frame)
-    prediction = int(model.predict(scaled_features)[0])
+    if hasattr(classifier, "feature_names_in_"):
+        scaled_features = pd.DataFrame(
+            scaled_features,
+            columns=classifier.feature_names_in_,
+        )
+    prediction = int(classifier.predict(scaled_features)[0])
     segment, description = PRICE_DESCRIPTIONS[prediction]
     return PredictionResponse(
         prediction=prediction,
         segment=segment,
         description=description,
-        model="Linear SVM",
+        model=MODEL_LABELS[model],
     )

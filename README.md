@@ -149,6 +149,7 @@ Terminal thứ hai chạy giao diện:
 streamlit run app.py
 ```
 Ứng dụng mở tại `http://localhost:8501`; tài liệu tương tác của API tại `http://127.0.0.1:8000/docs`.
+Trên giao diện, chọn **Linear SVM — Nguyễn Hồng Thanh** hoặc **Random Forest — Nguyễn Hoàng Thái** để dự đoán bằng mô hình tương ứng. Bảng so sánh hiển thị Accuracy và Macro F1 trên tập kiểm thử.
 
 ### Thí nghiệm Decision Tree và Random Forest
 Đặt dataset Kaggle tại `data/raw/train.csv`, sau đó chạy:
